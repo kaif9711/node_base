@@ -1,38 +1,32 @@
 version: 0.2
 
+env:
+  variables:
+     AWS_DEFAULT_REGION: "ca-central-1"
+     IMAGE_REPO_NAME: "kaif9711/node_base"
+     AWS_ACCOUNT_ID: "519139471137"
+
 phases:
+  install:
+    runtime-versions:
+      docker: 20
   pre_build:
     commands:
-      # Use environment variables provided by CodeBuild to log in to ECR
-      - echo Logging in to Amazon ECR...
-      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
-      
-      # Define variables for the image
-      - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/kaif9711/node_base
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - IMAGE_TAG=${COMMIT_HASH:=latest}
-
+      - echo Logging in to Amazon ECR...
+      - $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)
   build:
     commands:
-      - echo Build started on `date`
-      - echo Building the Docker image...
-      # Build the Docker image and tag it with the full ECR URI
-      - docker build -t $REPOSITORY_URI:$IMAGE_TAG .
-      # Tag it as 'latest' as well
-      - docker tag $REPOSITORY_URI:$IMAGE_TAG $REPOSITORY_URI:latest
-
+      - echo Build started on date
+      - echo Building the Docker image...          
+      - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG .
+      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG      
   post_build:
     commands:
-      - echo Build completed on `date`
-      - echo Pushing the Docker images to ECR...
-      # Push both the commit-specific tag and the 'latest' tag
-      - docker push $REPOSITORY_URI:$IMAGE_TAG
-      - docker push $REPOSITORY_URI:latest
-      
-      # Create the artifact file for CodePipeline deployments
-      - echo Writing image definitions file...
-      - printf '[{"name":"CHAOS_TEST","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
-
+      - echo Build completed on date
+      - echo Pushing the Docker image...
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      - printf '[{"name":"CHAOS_TEST","imageUri":"%s"}]' $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG > imagedefinitions.json
 artifacts:
     files: imagedefinitions.json
-
